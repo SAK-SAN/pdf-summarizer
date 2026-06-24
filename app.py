@@ -19,7 +19,6 @@ def get_gemini_models(api_key):
         res = requests.get(list_url)
         if res.status_code == 200:
             data = res.json()
-            # generateContent（テキスト生成）に対応しているモデルのみを抽出
             models = [
                 m["name"] for m in data.get("models", [])
                 if "generateContent" in m.get("supportedGenerationMethods", [])
@@ -29,6 +28,37 @@ def get_gemini_models(api_key):
             return []
     except Exception:
         return []
+
+# 【新規】 取得したモデル一覧から「最も高性能なモデル」のインデックスを自動で割り出す関数
+def find_best_model_index(models):
+    best_index = 0
+    max_score = -1.0
+    
+    for i, model in enumerate(models):
+        score = 0.0
+        
+        # 1. バージョン数値の抽出 (例: gemini-2.5 なら 2.5、gemini-1.5 なら 1.5)
+        version_match = re.search(r'gemini-(\d+\.?\d*)', model)
+        if version_match:
+            # バージョンが高いほどスコアを大きく加算 (例: 2.5 -> +25.0点)
+            score += float(version_match.group(1)) * 10
+            
+        # 2. 性能ティア(pro か flash か)の判定
+        if "pro" in model:
+            score += 5.0   # 思考力・解析力が高い pro を最優先
+        elif "flash" in model:
+            score += 1.0   # 高速軽量な flash はベース点
+            
+        # 3. プレビュー版や実験用モデル(exp)は安定性を考慮して微減
+        if "exp" in model:
+            score -= 0.5
+
+        # 最高得点を更新したらインデックスを記憶
+        if score > max_score:
+            max_score = score
+            best_index = i
+            
+    return best_index
 
 # 2. ページの基本設定
 st.set_page_config(page_title="論文解析 & Notionコピペツール", layout="centered", page_icon="🎓")
@@ -54,18 +84,14 @@ with st.sidebar:
         available_models = get_gemini_models(api_key)
     
     if available_models:
-        default_index = 0
-        for i, m in enumerate(available_models):
-            if "gemini-2.5-flash" in m:
-                default_index = i
-                break
-            elif "gemini-1.5-flash" in m:
-                default_index = i
+        # 【変更】動的アルゴリズムによって最強モデルの初期位置を自動計算
+        default_index = find_best_model_index(available_models)
         
         model_choice = st.selectbox(
             "使用するAIモデルを選択",
             options=available_models,
-            index=default_index
+            index=default_index,
+            help="APIから取得したモデルの中で、最も高性能なモデル（最新のpro等）が自動的に初期選択されています。"
         )
     else:
         st.warning("モデル一覧の取得に失敗しました。")
