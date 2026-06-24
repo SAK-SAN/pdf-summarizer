@@ -1,0 +1,17 @@
+# セキュリティ：絶対に秘密にすべき環境変数ファイル
+.env
+.env.local
+
+# Python：実行時に自動生成されるキャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+
+# エディタ・OS固有の隠しファイル
+.DS_Store
+Thumbs.db
+.vscode/
+
+# 仮想環境
+venv/
+.venv/
